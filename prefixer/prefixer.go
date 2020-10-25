@@ -3,13 +3,13 @@
 // call to Write() immediately results in a call to Write() of the underlying writer. This is particularly handy when
 // augmenting the output of an external application as it might print important status information without a trailing
 // newline.
-// This package is not concurrency safe.
 package prefixer
 
 import (
 	"bytes"
 	"fmt"
 	"io"
+	"sync"
 )
 
 type Prefixer struct {
@@ -17,6 +17,7 @@ type Prefixer struct {
 	writer          io.Writer
 	trailingNewline bool
 	buf             bytes.Buffer // reuse buffer to save allocations
+	mu              sync.Mutex
 }
 
 // New creates a new Prefixer that forwards all calls to Write() to writer.Write() with all lines prefixed with the
@@ -27,6 +28,9 @@ func New(writer io.Writer, prefixFunc func() string) *Prefixer {
 }
 
 func (pf *Prefixer) Write(payload []byte) (int, error) {
+	pf.mu.Lock()
+	defer pf.mu.Unlock()
+
 	pf.buf.Reset() // clear the buffer
 
 	for _, b := range payload {
@@ -57,9 +61,12 @@ func (pf *Prefixer) Write(payload []byte) (int, error) {
 	return len(payload), nil
 }
 
-// EnsureNewline prints a newline if the last character written wasn't a newline unless nothing has ever been written.
+// Flush prints a newline if the last character written wasn't a newline unless nothing has ever been written.
 // The purpose of this method is to avoid ending the output in the middle of the line.
-func (pf *Prefixer) EnsureNewline() {
+func (pf *Prefixer) Flush() {
+	pf.mu.Lock()
+	defer pf.mu.Unlock()
+
 	if !pf.trailingNewline {
 		fmt.Fprintln(pf.writer)
 	}

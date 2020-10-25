@@ -58,7 +58,7 @@ func Test(t *testing.T) {
 		p := New(&buf, d.prefixFunc)
 		fmt.Fprintf(p, d.in)
 		if d.callEnsureNewline {
-			p.EnsureNewline()
+			p.Flush()
 		}
 		out := buf.String()
 		if out != d.out {
